@@ -287,7 +287,9 @@ pub fn app() -> clap::App<'static> {
             .about("write to memory")
             .arg(Arg::new("ADDRESS")
                  .help("Address to start writing to")
-                 .required(true))
+                 .short('a')
+                 .required(true)
+                 .takes_value(true))
             .arg(Arg::new("INPUT")
                  .help("Sets the input file to use.")
                  .required(true)
@@ -302,7 +304,8 @@ pub fn app() -> clap::App<'static> {
                  .help("Address to start writing to")
                  .short('a')
                  .long("address")
-                 .required(true))
+                 .required(true)
+                 .takes_value(true))
             .arg(Arg::new("INPUT")
                  .help("Sets the input file to use.")
                  .required(true)
@@ -420,5 +423,3 @@ pub fn long_version(revision_hash: Option<&str>) -> String {
     };
     format!("{}{}", crate_version!(), hash)
 }
-
-
