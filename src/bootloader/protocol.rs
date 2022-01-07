@@ -36,6 +36,7 @@
 use super::Error as BootloaderError;
 use crate::bootloader::{command, property};
 use core::convert::{TryFrom, TryInto};
+use std::fmt::Debug;
 
 use hidapi::{HidDevice, HidResult};
 
@@ -67,6 +68,7 @@ pub enum Error {
 /// The NXP bootloader protocol result type, with split status as error
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Debug)]
 pub struct ResponsePacket {
     pub tag: command::ResponseTag,
     pub has_data: bool,
@@ -75,6 +77,7 @@ pub struct ResponsePacket {
     pub parameters: Vec<u32>,
 }
 
+#[derive(Debug)]
 pub enum ReceivedPacket {
     Response(ResponsePacket),
     Data(Vec<u8>),
@@ -333,9 +336,28 @@ impl Protocol {
 
                 let mut data = Vec::new();
                 while data.len() < length {
-                    let partial_data: Vec<u8> = self.read_packet()?.try_into()?;
-                    assert!(data.len() + partial_data.len() <= length);
-                    data.extend_from_slice(&partial_data);
+                    let received_packet = self.read_packet()?;
+                    match received_packet {
+                        ReceivedPacket::Response(packet) => {
+                            match packet.status {
+                                Some(BootloaderError::Unknown(code)) => {
+                                    if code == 10211 {
+                                        return Ok(command::Response::ReadMemory(vec![
+                                            0xff;
+                                            length
+                                        ]));
+                                    }
+                                }
+                                _ => {
+                                    // Not sure what should happen here.
+                                }
+                            }
+                        }
+                        ReceivedPacket::Data(partial_data) => {
+                            assert!(data.len() + partial_data.len() <= length);
+                            data.extend_from_slice(&partial_data);
+                        }
+                    }
                 }
 
                 let packet = ResponsePacket::try_from(self.read_packet()?)?;
@@ -372,7 +394,7 @@ impl Protocol {
         // the device often sends "extra junk"; we split this off early
         let expected_packet_len = u16::from_le_bytes(data[2..4].try_into().unwrap()) as usize;
         data.resize(4 + expected_packet_len, 0);
-        trace!("--> {} ({}B)", hex_str!(&data, 4), data.len());
+        trace!("<-- {} ({}B)", hex_str!(&data, 4), data.len());
 
         let response_packet = data.split_off(4);
 
